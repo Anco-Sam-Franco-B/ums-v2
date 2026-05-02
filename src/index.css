@@ -1,3 +1,8 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+.enter{
+    transform: scale(1);
+    opacity: 1;
+}
