@@ -4,6 +4,9 @@ import ErrorAlter from '../components/ErrorAlter'
 import Title from '../components/Title'
 import { Link } from 'react-router-dom'
 import ActionMenus from '../components/ActionMenus'
+import { io } from "socket.io-client"
+
+const socket = io("http://localhost:4000")
 
 function View() {
   const [loading, setLoading]=useState(false)
@@ -12,20 +15,55 @@ function View() {
   
   const fetchUsers=()=>{
       setLoading(true)
+      const token = localStorage.getItem("token")
       
-    axios.get('http://localhost:4000/users')
+    axios.get('http://localhost:4000/api/users', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
     .then(res=>{
-      setUsers(res.data.usersData)
+      setUsers(res.data)
       setError(null)
-      setTimeout(()=>setLoading(false), 3000)
+      setLoading(false)
     })
     .catch(err=>{
       setError(err)
+      setLoading(false)
     })
   }
 
-  useEffect(()=>{
+  const showNotification = (title, body) => {
+    if (Notification.permission === "granted") {
+      new Notification(title, { body, icon: "/vite.svg" })
+    }
+  }
+
+  useEffect(() => {
+    if (Notification.permission !== "granted") {
+      Notification.requestPermission()
+    }
+    
     fetchUsers()
+
+    socket.on("userCreated", (newUser) => {
+      setUsers((prev) => [newUser, ...prev])
+      showNotification("User Created", `${newUser.full_name} has been added.`)
+    })
+
+    socket.on("userUpdated", (updatedUser) => {
+      setUsers((prev) => prev.map((u) => u.id === updatedUser.id ? updatedUser : u))
+      showNotification("User Updated", `${updatedUser.full_name}'s info was updated.`)
+    })
+
+    socket.on("userDeleted", (deletedId) => {
+      setUsers((prev) => prev.filter((u) => u.id !== deletedId))
+      showNotification("User Deleted", "A user was removed from the system.")
+    })
+
+    return () => {
+      socket.off("userCreated")
+      socket.off("userUpdated")
+      socket.off("userDeleted")
+    }
   }, [])
 
 
@@ -65,11 +103,11 @@ function View() {
                       <tbody key={index}>
                         <tr  className='border-b last:border-b- border-b-blue-500/45'>
                           <td className='p-1 text-center'>{index + 1}.</td>
-                          <td className='p-1'>{data.fname}</td>
+                          <td className='p-1'>{data.full_name}</td>
                           <td className='p-1'>{data.email}</td>
                           <td className={`p-1 text-center ${data.age>=18?"": "underline text-red-500"}`}>{data.age}</td>
                           <td className='p-1 flex items-center justify-center'>
-                            {data.is_active===1?(
+                            {data.is_active ? (
                               <div className="p-1 bg-green-400/20 border border-green-500/40 font-medium text-xs rounded-full w-14 text-center text-green-600 shadow-lg">Online</div>
                             ): (
                               <div className="p-1 bg-red-400/20 border border-red-500/40 font-medium text-xs rounded-full w-14 text-center text-red-600 shadow-lg">Offline</div>
